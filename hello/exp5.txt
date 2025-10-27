@@ -1,0 +1,14 @@
+Step: 1 Terraform uses HashiCorp Configuration Language (HCL) to manage environments of
+Operators and Infrastructure teams. To download go to site
+https://www.terraform.io/downloads.html
+
+step: 2 select linux ubuntu system:
+there will be three command:
+
+wget -O - https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(grep -oP '(?<=UBUNTU_CODENAME=).*' /etc/os-release || lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+
+step: 3 check version terraform
+
+terraform -v

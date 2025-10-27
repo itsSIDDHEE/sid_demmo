@@ -1,0 +1,123 @@
+
+Yes, I can guide you through the experiment of creating your first AWS Lambda function using Python, specifically following the steps and code snippets from your document.
+
+AWS Lambda has a perpetual free tier that includes one million free requests per month and 400,000 GB-seconds of compute time per month. This is more than enough to complete this beginner experiment without incurring charges, as long as you do not use the function frequently or with excessive memory/duration beyond these limits.
+
+Here is a beginner-friendly, step-by-step guide to complete the experiment using the AWS Management Console.
+
+1. Create a New AWS Lambda Function
+This section follows the "Basic information" steps in your document.
+
+Log in to the AWS Management Console and navigate to the Lambda service. You can use the search bar at the top for "Lambda."
+
+Click the "Create function" button.
+
+Choose "Author from scratch."
+
+Configure the Basic information as follows:
+
+Function name: Enter sum.
+
+Runtime: Select Python 3.9 (or the latest available Python version).
+
+Architecture: Select x86_64.
+
+Configure the Permissions (this is usually set up correctly by default):
+
+Under Permissions, ensure "Create a new role with basic Lambda permissions" is selected (or you can use an existing role if you have one with basic Lambda permissions). This role gives Lambda permission to upload logs to Amazon CloudWatch Logs.
+
+Click the "Create function" button at the bottom.
+
+You should see a message confirming: "Successfully created the function sum".
+
+2. Edit the Function Code for the Sum Operation
+This section implements the first Python code snippet shown in your document, a simple function to calculate a sum.
+
+After creation, you'll be on the function's configuration page. Scroll down to the "Code source" panel.
+
+The code editor should display the file lambda_function.py.
+
+Replace the default code with the following Python code to calculate the sum of two fixed numbers (100 and 200), as shown in your experiment document:
+
+Python
+import json
+
+def lambda_handler(event, context):
+    first_number = 100
+    second_number = 200
+
+    sum_result = first_number + second_number
+    return sum_result
+(Note: I used sum_result instead of sum to avoid shadowing the built-in Python sum() function.)
+
+Click the "Deploy" button to save and update the function with the new code.
+
+3. Test the Sum Function
+Now, you'll test the deployed function to see the result of the sum.
+
+In the top panel, click the "Test" tab or the "Test" button next to Deploy.
+
+In the "Test event" configuration:
+
+Select "Create new event".
+
+Event name: Enter a name like mySumTest (or the one from your document, aptab-apsit).
+
+Since your code doesn't use the event data, you can leave the Event JSON as the default or an empty JSON object ({}).
+
+Click "Save".
+
+Click the main "Test" button to execute the function.
+
+Check the Execution Results tab:
+
+Status: Should be "Succeeded".
+
+Response: Should show 300 (the result of 100 + 200).
+
+4. Edit Code to Process an Input Event
+This step involves updating the code to check for a specific value in the input event (the data passed to the Lambda function) and return a different response, as shown in the second part of your document.
+
+Go back to the "Code" tab (if you left it).
+
+Edit the code in lambda_function.py to match the conditional logic from your document:
+
+Python
+import json
+
+def lambda_handler(event, context):
+    if event.get("name") == "aptab":
+        return "apsit"
+
+    # Fallback if "name" key is not "aptab" or is missing
+    return "Hello from Lambda!"
+(Note: I used event.get("name") to safely check for the key's existence.)
+
+Click "Deploy" to save and update the function.
+
+5. Test the Event Processing Function
+You'll now test the function with an event that triggers the conditional logic.
+
+Click the "Test" tab/button.
+
+Select the test event you created, e.g., aptab-apsit.
+
+Click the "Configure test event" drop-down menu and choose "Edit saved event" (or create a new one).
+
+Modify the Event JSON to include the necessary key-value pair, matching the condition in your code:
+
+JSON
+{
+  "name": "aptab"
+}
+Click "Save".
+
+Click the main "Test" button.
+
+Check the Execution Results tab:
+
+Status: Should be "Succeeded".
+
+Response: Should show "apsit" (the string result).
+
+You have now successfully understood the workflow of AWS Lambda, created a function, and tested both a static computation and a function that processes an input event.

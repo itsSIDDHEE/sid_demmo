@@ -1,0 +1,254 @@
+Experiment 9: Nagios Server & NRPE Client Installation (Full Guide)
+This guide is in two parts:
+
+Part A: You will install the main Nagios Server (the monitoring dashboard).
+
+Part B: You will install the NRPE Agent on a different Linux machine (the "remote host" you want to monitor).
+
+Part A: Install the Nagios Core Server
+(Do these steps on your main monitoring machine)
+
+Step 1: Install All Prerequisites
+This single step installs your web server (Apache), PHP, all the build tools, and the specific libraries needed to prevent the compile error you saw.
+
+Bash
+
+sudo apt-get update
+sudo apt-get install -y wget build-essential unzip openssl libssl-dev apache2 php libapache2-mod-php php-gd libgd-dev libjansson-dev
+Step 2: Create Nagios User and Group
+Nagios needs its own user to run safely.
+
+Bash
+
+sudo adduser nagios
+sudo groupadd nagcmd
+sudo usermod -a -G nagcmd nagios
+sudo usermod -a -G nagcmd www-data
+(You will be prompted to create a password for the nagios user. This is a system password, not the web login.)
+
+Step 3: Download and Compile Nagios Core
+This downloads the Nagios source code and builds it.
+
+Bash
+
+cd /opt/
+sudo wget https://assets.nagios.com/downloads/nagioscore/releases/nagios-4.4.3.tar.gz
+sudo tar xzf nagios-4.4.3.tar.gz
+cd nagios-4.4.3
+sudo ./configure --with-command-group=nagcmd
+sudo make all
+Pause here: If make all fails, stop. The commands in Step 1 should have fixed this.
+
+Step 4: Install Nagios Core
+This copies the compiled files into the correct system directories.
+
+Bash
+
+sudo make install
+sudo make install-init
+sudo make install-daemoninit
+sudo make install-config
+sudo make install-commandmode
+sudo make install-exfoliation
+Step 5: Configure Apache (The Correct Way)
+This creates the web config file. The one in your lab guide is outdated for Apache 2.4 and causes the "Forbidden" error.
+
+Create and open the new config file:
+
+Bash
+
+sudo nano /etc/apache2/conf-available/nagios.conf
+Paste this exact code into the file. It's different from your guide and is the correct version.
+
+Apache
+
+ScriptAlias /nagios/cgi-bin "/usr/local/nagios/sbin"
+<Directory "/usr/local/nagios/sbin">
+ Options ExecCGI
+ AllowOverride None
+ AuthName "Restricted Area"
+ AuthType Basic
+ AuthUserFile /usr/local/nagios/etc/htpasswd.users
+ Require valid-user
+</Directory>
+
+Alias /nagios "/usr/local/nagios/share"
+<Directory "/usr/local/nagios/share">
+ Options None
+ AllowOverride None
+ AuthName "Restricted Area"
+ AuthType Basic
+ AuthUserFile /usr/local/nagios/etc/htpasswd.users
+ Require valid-user
+</Directory>
+Save and close the file (Ctrl+O, Enter, Ctrl+X).
+
+Step 6: Create Your Web Login
+This creates the nagiosadmin user and password you will use to log into the web page.
+
+Bash
+
+sudo htpasswd -c /usr/local/nagios/etc/htpasswd.users nagiosadmin
+Important: You will be prompted to create a password. Remember this password!
+
+Step 7: Enable Apache Modules and Nagios Config
+This tells Apache to enable the new config and the cgi module.
+
+Bash
+
+sudo a2enconf nagios
+sudo a2enmod cgi rewrite
+Step 8: Fix "Forbidden" Error (AppArmor)
+This is the critical missing step. This error happens because a Linux security module called AppArmor blocks Apache from accessing the Nagios files. This command tells AppArmor to "complain" but not "enforce" the rules for Apache.
+
+Bash
+
+sudo apt-get install -y apparmor-utils
+sudo aa-complain /usr/sbin/apache2
+sudo systemctl restart apache2
+Step 9: Install Nagios Plugins
+Nagios Core is just a scheduler. These are the actual scripts that check services.
+
+Bash
+
+cd /opt
+sudo wget http://www.nagios-plugins.org/download/nagios-plugins-2.2.1.tar.gz
+sudo tar xzf nagios-plugins-2.2.1.tar.gz
+cd nagios-plugins-2.2.1
+sudo ./configure --with-nagios-user=nagios --with-nagios-group=nagios --with-openssl
+sudo make
+sudo make install
+Step 10: Verify and Start All Services
+Now, verify the Nagios config and start both Nagios and Apache.
+
+Check your Nagios config for errors:
+
+Bash
+
+/usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
+If this shows no errors, proceed.
+
+Start the services:
+
+Bash
+
+sudo systemctl start nagios
+sudo systemctl restart apache2
+(Use systemctl status nagios to check that it's running.)
+
+Step 11: Access the Web Interface
+You are done with the server!
+
+Open your browser and go to: http://127.0.0.1/nagios/
+
+Username: nagiosadmin
+
+Password: The one you created in Step 6.
+
+Part B: Configure a Remote Host (NRPE Client)
+(Do these steps on the other Linux machine you want to monitor)
+
+Step 12: Install NRPE Agent and Plugins
+This is much easier on the remote machine; we can just use apt.
+
+Bash
+
+sudo apt-get update
+sudo apt-get install -y nagios-nrpe-server nagios-plugins
+Step 13: Configure NRPE
+You must tell the agent to trust your Nagios Server.
+
+Open the NRPE config file:
+
+Bash
+
+sudo nano /etc/nagios/nrpe.cfg
+Find the allowed_hosts line. It probably says allowed_hosts=127.0.0.1,::1.
+
+Add your Nagios Server's IP address to this line (e.g., 192.168.1.50).
+
+Before: allowed_hosts=127.0.0.1,::1
+
+After: allowed_hosts=127.0.0.1,::1,192.168.1.50
+
+Find the command[check_root]=... line. We will use this. It should look like: command[check_root]=/usr/lib/nagios/plugins/check_disk -w 20% -c 10% -p /
+
+Save and close the file (Ctrl+O, Enter, Ctrl+X).
+
+Step 14: Start the NRPE Service
+Bash
+
+sudo systemctl start nagios-nrpe-server
+(Use systemctl status nagios-nrpe-server to check that it's running.)
+
+Part C: Connect Server to Remote Host
+(Go back to your Nagios Server machine for these final steps)
+
+Step 15: Install the check_nrpe Plugin
+Your server needs this plugin to talk to the remote agent.
+
+Bash
+
+sudo apt-get install -y nagios-nrpe-plugin
+Step 16: Define the Remote Host for Nagios
+Now you tell Nagios what to monitor.
+
+Create a new config file for your remote host:
+
+Bash
+
+sudo nano /usr/local/nagios/etc/objects/remote-host.cfg
+Paste this code into the file. You must change the alias, host_name, and address fields.
+
+define host{
+    use                     linux-server
+    host_name               my-remote-server
+    alias                   My First Remote Server
+    address                 192.168.1.51
+    }
+
+define service{
+    use                             generic-service
+    host_name                       my-remote-server
+    service_description             Root Partition
+    check_command                   check_nrpe!check_root
+    }
+address: Put the IP address of your remote machine (the one from Part B).
+
+check_command: This tells Nagios to run the check_root command we saw in Step 13.
+
+Save and close the file.
+
+Step 17: Add Host to Main Nagios Config
+Tell Nagios to load your new remote-host.cfg file.
+
+Open the main config file:
+
+Bash
+
+sudo nano /usr/local/nagios/etc/nagios.cfg
+Scroll down to the "OBJECT CONFIGURATION FILES" section.
+
+Add this new line:
+
+cfg_file=/usr/local/nagios/etc/objects/remote-host.cfg
+Save and close the file.
+
+Step 18: Final Verify and Restart
+This is the final step!
+
+Verify your configuration one last time:
+
+Bash
+
+/usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
+If it shows no errors, you are good to go.
+
+Restart Nagios to load the new config:
+
+Bash
+
+sudo systemctl restart nagios
+Go back to your Nagios web interface. After a few minutes, you should see your new remote host ("My First Remote Server") appear on the dashboard!
+
+http://27.0.0.1/nagios/

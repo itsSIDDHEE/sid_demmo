@@ -1,0 +1,203 @@
+Part 1: Installation and Setup of Jenkins
+This section follows pages 1-6 of your manual.
+
+Add the Jenkins Repository Key: Open your terminal and run the following command:
+
+Bash
+
+wget -q -0 https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo apt-key add
+Add the Jenkins Repository: Next, run this command to add the repository to your server's sources:
+
+Bash
+
+sudo sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+Update and Install Jenkins: Run update so apt can find the new repository , and then install Jenkins:
+
+
+Bash
+
+sudo apt update
+sudo apt install jenkins
+Start and Check Jenkins: Start the Jenkins service using systemctl and check its status:
+
+
+Bash
+
+sudo systemctl start jenkins
+sudo systemctl status jenkins
+Open the Firewall: Jenkins runs on port 8080 by default. Allow this port through the firewall:
+
+Bash
+
+sudo ufw allow 8080
+Set Up Jenkins in the Browser:
+
+Visit http://your_server_ip_or_domain:8080 in your web browser.
+
+You will see the Unlock Jenkins screen.
+
+
+Go back to your terminal and run this command to get the initial password:
+
+Bash
+
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+Copy the password from the terminal, paste it into the "Administrator password" field in your browser, and click Continue.
+
+On the Customize Jenkins screen, click Install suggested plugins.
+
+
+After the plugins install, you will be prompted to Create First Admin User. Fill in your details as shown in the manual (e.g., username manasi, full name manasi choche, etc.) . Click Save and Continue.
+
+
+On the Instance Configuration page, confirm the Jenkins URL and click Save and Finish .
+
+Click Start using Jenkins to go to the main dashboard.
+
+Part 2: SonarQube Setup
+This section follows pages 6-7 of your manual, which uses Docker for SonarQube.
+
+Install and Run SonarQube: In your terminal, run the Docker command from your manual to start SonarQube:
+
+
+Bash
+
+docker run -d -p 9000:9000 sonarqube
+
+(This command will pull the sonarqube:latest image if you don't have it locally .)
+
+Access SonarQube:
+
+Wait a few moments for it to start.
+
+In your browser, go to http://localhost:9000.
+
+Log in using the default credentials: Username: admin and Password: admin. You will be asked to change the password.
+
+Generate a User Token:
+
+In the SonarQube UI, navigate to Administration > User > My Account > Security.
+
+
+Give your new token a name, such as Jenkin.
+
+Click the Generate button.
+
+
+Important: Copy the generated token (e.g., squ_4ebb...) immediately and save it somewhere safe. You will not be able to see it again.
+
+
+
+Part 3: Configure Jenkins with SonarQube
+This section follows pages 8-11 of your manual.
+
+Install SonarQube Scanner Plugin in Jenkins:
+
+In your Jenkins dashboard (http://localhost:8080), go to Manage Jenkins > Plugin Manager.
+
+Click the Available tab.
+
+Search for SonarQube Scanner, select it, and install it.
+
+Add SonarQube Server Credentials in Jenkins:
+
+Go to Manage Jenkins > Credentials > System > Global credentials (unrestricted).
+
+Click Add Credentials.
+
+
+Kind: Select Secret text.
+
+
+Secret: Paste the SonarQube token you generated and saved earlier.
+
+
+ID: sonarqube.
+
+
+Description: sonarqube.
+
+Click OK (or Create).
+
+Configure the SonarQube Server in Jenkins:
+
+Go to Manage Jenkins > Configure System.
+
+Scroll down to the SonarQube servers section.
+
+Click Add SonarQube.
+
+
+Name: SonarQube.
+
+
+Server URL: http://localhost:9000.
+
+
+Server authentication token: From the dropdown, select the sonarqube credential you just created.
+
+
+Click Apply.
+
+Configure the SonarQube Scanner Tool:
+
+Go to Manage Jenkins > Global Tool Configuration.
+
+Scroll down to SonarQube Scanner and click Add SonarQube Scanner.
+
+
+Name: SonarQube1.
+
+Check the box for Install automatically.
+
+Under "Install from Maven Central", select a version (your manual shows SonarQube Scanner 7.2.0.5079).
+
+
+
+Click Save.
+
+Part 4: Create the Jenkins Pipeline
+This section follows pages 12-15 of your manual.
+
+Create a New Job:
+
+From the main Jenkins dashboard, click New Item.
+
+Enter an item name: SonarQube.
+
+Select Pipeline and click OK.
+
+
+Configure the Pipeline:
+
+On the configuration page, under the General tab, check the GitHub project box.
+
+In the Project url field, enter: https://github.com/vishal003/jenkins-sonarqube.
+
+Scroll down to the Pipeline section.
+
+Make sure the Definition is set to Pipeline script.
+
+In the Script text box, copy and paste the Groovy code exactly from your manual :
+
+
+node{
+
+    stage('cloning from git'){
+        git branch: 'main', credentialsID: 'GIT REPO', url: 'https://github.com/vishal003/jenkins-sonarqube'
+    }
+}
+
+Click Save.
+
+Run the Pipeline:
+
+You will be taken to the job's page. Click Build Now on the left menu.
+
+A build will start. You can click on the build number (e.g., #1) and then click Console Output to view the log.
+
+
+You should see it clone the repository and finish with Finished: SUCCESS.
+
+
+As your manual concludes, you have successfully installed Jenkins and SonarQube and created a CI pipeline using a GitHub repository.

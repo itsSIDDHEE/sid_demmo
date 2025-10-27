@@ -1,0 +1,170 @@
+
+
+Here is your beginner-friendly guide to complete Experiment 12 within the AWS Free Tier.
+
+1. Create an Amazon S3 Bucket 🏗️
+The first step is to create the container that will store the "image" and trigger the Lambda function.
+
+Navigate to the S3 service in the AWS Management Console.
+
+Click "Create bucket".
+
+General configuration:
+
+
+AWS Region: Choose the same region you used for your Lambda function (e.g., Asia Pacific (Mumbai) ap-south-1 ). This is crucial for the trigger to work.
+
+Bucket name: Enter a globally unique name, usually including your name or ID for uniqueness. Based on your document, use a name like lambdawiths3-is (or a similar unique name).
+
+
+Leave all other settings as their default for this experiment (e.g., Block Public Access is enabled).
+
+Scroll down and click "Create bucket".
+
+You should see a message: "Successfully created bucket...".
+
+2. Create an IAM Role for Permissions 🛡️
+Your Lambda function needs permission not just to write logs, but also to read details about the S3 event that triggers it. Although you can let Lambda create a role, creating one with the necessary policies upfront is a good practice for this experiment.
+
+Navigate to the IAM service (Identity and Access Management).
+
+In the left navigation pane, click "Roles" and then "Create role".
+
+Step 1: Select trusted entity
+
+
+Trusted entity type: Choose "AWS service".
+
+
+Use case: Select "Lambda" from the dropdown menu.
+
+Click "Next".
+
+Step 2: Add permissions
+
+In the search box, search for the following policies and check the box next to each one (or a similar policy that grants full S3 and logging access, as shown in the summary):
+
+AWSLambdaBasicExecutionRole (To allow writing logs to CloudWatch).
+
+AmazonS3ReadOnlyAccess (To allow the function to read the S3 event details, even though this function only logs). Your document also includes policies like AmazonS3FullAccess and CloudWatchFullAccess, but for this basic experiment, the two above are sufficient and more aligned with the principle of least privilege.
+
+Click "Next".
+
+Step 3: Name, review, and create
+
+
+Role name: Enter a name like apsit-lambda-s3-role (your document uses apsitlambda ).
+
+
+Click "Create role".
+
+You should see a message confirming "Role your-role-name created".
+
+3. Create the S3-Triggered Lambda Function ⚙️
+Now, create the new Lambda function that will be triggered by the S3 event.
+
+Navigate back to the Lambda service.
+
+Click "Create function".
+
+Basic information:
+
+
+Function name: Enter lamdbawiths3-as (or a similar name).
+
+
+Runtime: Select Python 3.9 (or the latest version).
+
+Architecture: Select x86_64.
+
+Permissions:
+
+Under Change default execution role, choose "Use an existing role".
+
+In the Existing role dropdown, select the role you just created (apsit-lambda-s3-role or apsitlambda).
+
+Click "Create function".
+
+4. Write the Function Code 📝
+This function will simply read the event and log a message to CloudWatch.
+
+On the function configuration page, scroll down to the "Code source" panel.
+
+Replace the default code in lambda_function.py with the following Python code:
+
+Python
+import json
+import logging
+
+# Configure logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+def lambda_handler(event, context):
+    # The S3 event details are contained in the 'event' parameter
+
+    # Log the full event for debugging (optional but helpful)
+    logger.info("Received event: " + json.dumps(event))
+
+    # Log the required success message
+    logger.info("An Image has been added")
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Successfully processed S3 event')
+    }
+Click the "Deploy" button to save the changes.
+
+5. Configure the S3 Trigger 🔗
+This is the final, crucial step that links the S3 bucket and the Lambda function.
+
+On the function's main page (Function overview), click "+ Add trigger".
+
+Trigger configuration:
+
+
+Select a source: Choose "S3".
+
+
+Bucket: Start typing the name of the S3 bucket you created (e.g., lambdawiths3-as ).
+
+
+Event types: Select "All object create events". This ensures the function runs any time an object is created (uploaded, copied, or put) into the bucket.
+
+Prefix/Suffix: Leave these blank.
+
+
+Acknowledge: Check the box next to "I acknowledge that using the same S3 bucket..." (This is a safety warning, but for this experiment, it's fine).
+
+Click "Add".
+
+You should see a message: "The trigger [bucket name] was successfully added..." and the S3 icon will appear in your Function overview diagram.
+
+
+6. Test the End-to-End Workflow and Verify Logs ✅
+The moment of truth! You will upload a file to S3 and verify the function ran by checking the CloudWatch logs.
+
+Upload a test file:
+
+Navigate back to your S3 bucket (lambdawiths3-as).
+
+Click "Upload".
+
+Add a file (ideally an image, as per the aim) and click "Upload" again.
+
+Verify Lambda Execution:
+
+Navigate back to your Lambda function (lamdbawiths3-as).
+
+Click the "Monitor" tab.
+
+Click "View logs in CloudWatch". This will take you to the CloudWatch Log groups for your function.
+
+Check the Log Events:
+
+Click on the most recent log stream (it should correspond to the time you uploaded the file).
+
+Scan the messages. You should find the entry: INFO An Image has been added.
+
+
+Conclusion: You have successfully created an event-driven architecture, where an action in one service (S3 file upload ) automatically triggered code execution in another service (Lambda), and verified the result in CloudWatch Logs.

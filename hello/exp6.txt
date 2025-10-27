@@ -1,0 +1,247 @@
+
+1. Install AWS CLI (Command Line Interface)
+The AWS CLI is required to configure your access to AWS from your local machine.
+
+Install Curl and Unzip: These utilities are needed to download and extract the AWS CLI installation file.
+
+
+Bash
+
+$ sudo apt-get install curl
+$ sudo apt install unzip
+
+Download the AWS CLI V2: Download the installation zip file.
+
+Bash
+
+$ curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+
+Unzip and Install: Extract the file and run the installation script.
+
+Bash
+
+$ sudo unzip awscliv2.zip
+$ sudo ./aws/install
+
+Verify Installation: Check the installed version.
+
+Bash
+
+$ aws --version
+(The output should display the version details ).
+
+2. Create AWS Access Keys
+You need an Access Key ID and Secret Access Key to authenticate the AWS CLI and Terraform.
+
+
+Navigate to Security Credentials: Log in to your AWS console, click on your username, and go to My security credentials.
+
+Create a New Access Key: Continue to the security credentials section, find Access keys (access key ID and secret access key), and follow the steps to create a new key pair.
+
+**Crucial Step: Make sure to download the keys in your local machine, as you cannot retrieve the Secret Access Key later.
+
+3. Configure AWS Access on Local Machine
+Use the downloaded keys to configure your local environment for AWS access.
+
+Run Configuration Command:
+
+Bash
+
+$ aws configure
+Enter Details: You'll be prompted for the following. Enter the values you obtained in the previous step.
+
+AWS Access Key ID: (Your Access Key ID)
+
+AWS Secret Access Key: (Your Secret Access Key)
+
+Default region name: Use a region code like ap-south-1 (Mumbai) or us-east-1 (N. Virginia). The example uses ap-south-1.
+
+Default output format: (You can leave this blank or as json)
+
+4. Install Terraform (Not explicitly detailed in the source, but required for the experiment)
+Install Terraform on your Linux machine. You would typically download the appropriate package from the HashiCorp website and place the executable in your system's PATH (e.g., /usr/local/bin).
+
+Terraform Project Setup
+5. Create Project Directory
+Create a dedicated directory for your Terraform configuration files.
+
+Commands:
+
+Bash
+
+$ cd ~
+$ mkdir project-terraform
+$ cd project-terraform
+6. Create AWS Key Pair for EC2
+The EC2 instance created by Terraform needs a key pair for SSH access.
+
+
+Create Key Pair in AWS Console: In the AWS console, navigate to the EC2 dashboard, go to Key Pairs, and click Create key pair.
+
+
+Name the Key: Name the key pair terraform and choose .pem format. This name will be used in your variables.tf file.
+
+
+
+The private key file will automatically download (e.g., terraform.pem).
+
+7. Create variables.tf File
+This file defines input variables, making your configuration reusable and parameterizable.
+
+Command:
+
+Bash
+
+$ sudo nano variables.tf
+Content (Free-Tier Consideration):
+
+Ensure the instance_type is set to t2.micro as this is typically free-tier eligible.
+
+
+The key_name must match the name you created in the AWS console (terraform).
+
+
+The aws_region should match the one configured earlier (ap-south-1 in the example).
+
+
+Terraform
+
+variable "aws_region" {
+  description = "The AWS region to create things in."
+  default     = "ap-south-1"  # Use your default region
+}
+
+variable "key_name" {
+  description = "SSH keys to connect to ec2 instance"
+  default     = "terraform"   # Must match the key pair name you created
+}
+
+variable "instance_type" {
+  description = "instance type for ec2"
+  default     = "t2.micro"    # Free-tier eligible instance type
+}
+8. Create main.tf File
+This file contains the configuration for the AWS resources you want to create.
+
+Get AMI ID: Note down the Amazon Machine Image (AMI) ID for a suitable operating system (like Amazon Linux 2 AMI) in your chosen region. The example uses a specific AMI ID: ami-0b9064170e32bde34. Note: AMI IDs are region-specific and can change, so you might need to find a current one for your region.
+
+
+Command:
+
+Bash
+
+$ sudo nano main.tf
+
+Content: This configuration defines an AWS provider, a security group (security_jenkins_port), an EC2 instance (myFirstInstance), and an Elastic IP (myFirstInstance).
+
+
+
+
+
+
+Security Group: Opens port 22 (SSH) and 8080 (standard Jenkins port) for inbound traffic from anywhere (0.0.0.0/0), and allows all outbound TCP traffic .
+
+
+
+
+EC2 Instance: Uses the variables for key name and instance type, and associates the Security Group.
+
+
+Elastic IP (EIP): Associates a static IP with the instance.
+
+
+Terraform
+
+provider "aws" {
+  region = var.aws_region
+}
+
+#Create security group with firewall rules
+resource "aws_security_group" "security_jenkins_port" {
+  name        = "security_jenkins_port"
+  description = "security group for jenkins"
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # outbound from jenkis server
+  egress {
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags= {
+    Name = "security_jenkins_port"
+  }
+}
+
+resource "aws_instance" "myFirstInstance" {
+  # USE A VALID AMI-ID FOR YOUR CHOSEN REGION
+  ami           = "ami-0b9064170e32bde34" # Replace with your AMI ID
+  key_name      = var.key_name
+  instance_type = var.instance_type
+  vpc_security_group_ids = [aws_security_group.security_jenkins_port.id]
+  tags= {
+    Name = "jenkins_instance"
+  }
+}
+
+Executing Terraform Commands
+9. Initialize Terraform
+This command downloads the necessary provider plugins (in this case, the hashicorp/aws provider) and initializes the working directory.
+
+Command:
+
+Bash
+
+$ terraform init
+
+10. Create an Execution Plan
+The terraform plan command shows exactly what Terraform will do (add, change, or destroy) to match the configuration defined in your .tf files. You should see a plan to add 3 resources (the security group, the EC2 instance, and the Elastic IP).
+
+
+Command:
+
+Bash
+
+$ terraform plan
+11. Apply the Configuration (Build Infrastructure)
+The terraform apply command executes the changes determined in the plan, creating the resources in your AWS account.
+
+Command:
+
+Bash
+
+$ terraform apply
+Confirmation: You will be prompted to confirm. Type yes and press Enter.
+
+
+Verification: Once complete, it should confirm that 3 resources were added. You can now check the EC2 console to see the new jenkins_instance running and the security_jenkins_port security group.
+
+
+Destroying Infrastructure
+12. Destroy the Infrastructure
+The terraform destroy command is essential for free-tier compliance to ensure you don't incur unexpected costs by leaving resources running. This command will tear down all the resources defined in your .tf files.
+
+Command:
+
+Bash
+
+$ terraform destroy
+Confirmation: You will be prompted to confirm. Type yes and press Enter.
+
+
+Verification: The process will destroy all 3 resources. Once complete, you should check the EC2 console to confirm the jenkins_instance and associated resources (Security Group, Elastic IP) have been deleted.

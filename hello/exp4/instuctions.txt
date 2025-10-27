@@ -1,0 +1,236 @@
+Hello! Let's get Experiment 4 up and running. The goal is to create a two-node Kubernetes cluster (one master, one worker) using AWS EC2 instances.
+
+
+
+You are right to be cautious about billing. The EC2 t2.micro instances and the Ubuntu OS are Free Tier eligible.
+
+
+
+The most important part to avoid a bill is the storage. The free tier includes 30 GB of EBS storage. Your lab manual shows using 16 GB, but since you'll use two instances (16GB * 2 = 32GB), that would go over the limit.
+
+
+Solution: We will use 10 GB for each instance. This keeps your total at 20 GB, well within the 30 GB free limit.
+
+Here is the step-by-step guidance.
+
+Step 1: Launch Your Two EC2 Instances
+We will launch both the master and worker nodes at the same time.
+
+Go to the EC2 service in your AWS Console and click Launch instances.
+
+
+Number of instances: Set this to 2.
+
+Name and tags:
+
+Click "Add additional tags".
+
+Add a tag with Key: Name and Value: k8s-node. (We will rename them master and slave later, just like in the lab manual ).
+
+
+Application and OS Images:
+
+Select Ubuntu.
+
+Make sure the Ubuntu Server 24.04 LTS (HVM) is selected, and that it says "Free tier eligible".
+
+
+Instance type:
+
+Select t2.micro (which should be marked "Free tier eligible").
+
+Key pair (login):
+
+Create a new key pair.
+
+
+Key pair name: impskey (or any name you'll remember).
+
+
+Private key file format: Select .pem.
+
+Click Create key pair and save the .pem file securely. You will need it to connect.
+
+Network settings (Security Group):
+
+Click Edit.
+
+Security group name: k8s-sg
+
+Inbound security group rules: You need to add two rules.
+
+Rule 1 (For SSH):
+
+Type: SSH
+
+
+Source type: My IP (This is more secure than 0.0.0.0/0 ).
+
+Rule 2 (For Cluster Communication):
+
+Click Add rule.
+
+Type: All traffic
+
+Source type: Custom. In the search box that appears, select your new security group (anywhere). This allows your two instances to talk to each other on any port, which is required for Kubernetes.
+
+Configure storage (THE IMPORTANT STEP):
+
+By default, it might say 8GB.
+
+Change the value to 15 GiB. This ensures your total (2 instances x 15 GiB = 30 GiB) is under the 30 GiB free limit.
+
+Summary:
+
+In the right-hand Summary box, confirm you are launching 2 instances of type t2.micro with 10 GiB of storage each.
+
+Click Launch instance.
+
+Step 2: Connect to Both Instances
+Go to your Instances list. You will see your two k8s-node instances running.
+
+
+Rename them:
+
+Select the first instance, click in the "Name" column, and type master.
+
+Select the second instance and rename it to slave.
+
+Open two terminal windows on your computer (one for the master, one for the slave).
+
+In Terminal 1 (Master):
+
+Select the master instance in the AWS console and click Connect.
+
+run this 
+
+export PS1='ubuntu@master:~$'
+
+Paste it into your terminal (make sure you are in the same directory as your .pem file) and press Enter.
+
+In Terminal 2 (Slave):
+
+Select the slave instance in the AWS console and click Connect.
+
+run this
+
+export PS1='ubuntu@master:~$'
+
+Paste it into your second terminal and press Enter.
+
+You should now be connected to both instances, one in each terminal.
+
+
+Step 3: Install Kubernetes on BOTH Nodes
+You must run these commands in both terminals (on the master and the slave).
+
+Run this entire block of commands on both machines:
+
+Bash
+
+# 1. Update the system
+sudo apt-get update
+sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+
+# 2. Install Docker (Container Runtime)
+sudo apt-get install -y docker.io
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# 3. Add the Kubernetes package repository
+sudo curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+# 4. Install kubelet, kubeadm, and kubectl
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+
+# 5. Disable swap (a Kubernetes requirement)
+sudo swapoff -a
+sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+# 6. Configure system for Kubernetes networking
+sudo modprobe br_netfilter
+sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
+sudo sysctl -w net.ipv4.ip_forward=1
+Step 4: Initialize the Master Node
+Run these commands ONLY on your master terminal.
+
+Pull the required container images:
+
+Bash
+
+sudo kubeadm config images pull
+Initialize the cluster. This command uses a specific IP range for the "Flannel" network we'll install.
+
+Bash
+
+sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=NumCPU,Mem
+
+This command will take a few minutes. When it finishes, it will print two important things:
+
+A set of commands to run "as a regular user".
+
+A kubeadm join command with a token.
+
+
+Run the "regular user" commands on your master node to give yourself kubectl access :
+
+
+Bash
+
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Install the Pod Network (Flannel) on your master node:
+
+Bash
+
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+Check that your master node is ready. Run:
+
+Bash
+
+kubectl get nodes
+You should see your master node with the status Ready.
+
+Step 5: Join the Slave Node
+Find the kubeadm join ... command that was printed on your master terminal. It will look like this : 
+kubeadm join <some-ip>:6443 --token <some-token> --discovery-token-ca-cert-hash sha256:<some-hash>
+
+Copy that entire command.
+
+Go to your slave node's terminal (Terminal 2).
+
+Paste the kubeadm join command and add sudo to the beginning:
+
+Bash
+
+sudo kubeadm join <paste-the-rest-of-the-command-here>
+Press Enter. After a moment, you should see a message: "This node has joined the cluster".
+
+Step 6: Verify Your Cluster
+Go back to your master node's terminal (Terminal 1).
+
+Run kubectl get nodes again.
+
+You should now see both your master and slave nodes, and both should have the status Ready.
+
+Congratulations! You have successfully spun up a Kubernetes cluster on EC2  while staying within the free tier limits.
+
+Step 7: VERY IMPORTANT - Clean Up Resources
+To guarantee you do not get billed, you must terminate your instances when you are finished.
+
+Go to the EC2 console.
+
+Click on Instances.
+
+Check the boxes next to both your master and slave instances.
+
+Click Instance state > Terminate instance.
+
+Confirm the termination. This will delete the instances and their 10GB storage volumes, stopping all charges.
+
+(Optional) You can also delete the .pem key file from your computer and the k8s-sg security group from the EC2 console.

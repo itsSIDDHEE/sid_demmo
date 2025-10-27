@@ -1,0 +1,399 @@
+Hello! Based on the lab manuals and presentation you provided, you're looking to create a complete CI/CD pipeline (Continuous Integration / Continuous Deployment).
+
+The goal is to automatically take the code for a static website (the "Car Zone" site ) from a GitHub repository, use AWS CodeBuild to prepare it, and then automatically deploy it to an AWS S3 bucket configured for static website hosting.
+
+
+This is an excellent experiment for a beginner, and all the services involved (S3, CodePipeline, and CodeBuild) have a generous Free Tier, so you won't be charged if you follow these steps and remember to clean up afterward.
+
+Here is your step-by-step guidance.
+
+Prerequisite: Fork the GitHub Repository
+The pipeline needs code to deploy. The documents use a sample project. You need your own copy of this.
+
+
+Go to this GitHub repository: https://github.com/iamdkcoder/Car-pwa-deploy-on-aws  (This is the one from your presentation).
+
+In the top-right corner, click the "Fork" button. This will create a copy of the repository in your own GitHub account.
+
+This repository already contains a buildspec.yml file, which is a special file that tells AWS CodeBuild what commands to run.
+
+
+You will use your forked copy for all the steps below.
+
+Step 1: Create Two S3 Buckets
+You need two separate S3 buckets:
+
+
+Artifact Bucket: A private bucket to store the intermediate files from your build (known as artifacts).
+
+
+
+
+Website Bucket: A public bucket that will host the live website.
+
+
+
+Navigate to the Amazon S3 service in your AWS console.
+
+Create the Artifact Bucket:
+
+Click Create bucket.
+
+
+
+
+Bucket name: Give it a globally unique name, like store-build-artifact-is from your lab manual.
+
+
+
+
+AWS Region: Choose a region (e.g., ap-south-1 (Mumbai) or us-east-1 (N. Virginia) ).
+
+
+
+Block Public Access: Keep all public access blocked (all boxes checked). This bucket must be private.
+
+Click Create bucket.
+
+Create the Website Bucket:
+
+Click Create bucket again.
+
+
+Bucket name: Give it another unique name, like deployment-bucket-pwa-is from your manual.
+
+
+
+AWS Region: Select the exact same region as your artifact bucket.
+
+
+Block Public Access: Uncheck the "Block all public access" box. This is necessary to make your website public.
+
+
+Check the "I acknowledge..." warning box that appears.
+
+Click Create bucket.
+
+Step 2: Configure the Website Bucket for Hosting
+Now you'll tell S3 to treat your website bucket like a web server.
+
+Click on the website bucket you just created (e.g., deployment-bucket-pwa-is).
+
+Go to the Properties tab.
+
+
+Scroll all the way down to Static website hosting and click Edit.
+
+
+
+
+Select Enable.
+
+
+For Hosting type, choose Host a static website.
+
+
+In the Index document field, type index.html.
+
+
+
+Click Save changes.
+
+Now, go to the Permissions tab  for the same bucket.
+
+
+
+Scroll down to Bucket policy and click Edit.
+
+
+Copy and paste the following JSON policy . This policy allows everyone in the world to read (i.e., "Get") the objects in your bucket, which is necessary for a public website.
+
+JSON
+
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "PublicReadGetObject",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::YOUR-BUCKET-NAME/*"
+        }
+    ]
+}
+
+IMPORTANT: Replace YOUR-BUCKET-NAME in the Resource line with the exact name of your website bucket (e.g., arn:aws:s3:::deployment-bucket-pwa-is/*).
+
+
+Click Save changes. The bucket permissions will now show "Publicly accessible".
+
+Step 3: Create the AWS CodeBuild Project
+This service will pull your code from GitHub and prepare it for deployment.
+
+Navigate to the AWS CodeBuild service.
+
+Click Create build project.
+
+
+
+
+
+Project name: Enter a name, like pwa-codebuild-is.
+
+
+
+Source:
+
+
+Source provider: Select GitHub.
+
+
+
+
+Connection: Connect to your GitHub account using OAuth. A pop-up will ask you to authorize AWS.
+
+
+
+
+Repository: Choose Repository in my GitHub account.
+
+
+
+
+GitHub repository: Select your forked Car-pwa-deploy-on-aws repository.
+
+
+Environment:
+
+
+Operating system: Select Amazon Linux.
+
+
+
+
+Runtime(s): Select Standard.
+
+
+Image: Choose the latest available image.
+
+
+
+
+Service role: Select New service role. A default role name like codebuild-pwa-codebuild-is-service-role will be created.
+
+
+
+
+
+Buildspec:
+
+Select Use a buildspec file. This tells CodeBuild to look for the buildspec.yml file in your GitHub repo.
+
+
+
+Logs:
+
+Check the CloudWatch logs box. This is very helpful for debugging if something goes wrong.
+
+
+
+Click Create build project.
+
+
+Step 4: Create the AWS CodePipeline
+This is the final step that connects everything together. The pipeline will:
+
+Source: Watch GitHub for changes.
+
+Build: Automatically trigger CodeBuild to build the code.
+
+Deploy: Automatically deploy the build files to your S3 website.
+
+Navigate to the AWS CodePipeline service.
+
+
+
+Click Create pipeline.
+
+
+
+Step 1: Choose pipeline settings
+
+
+Pipeline name: Enter a name, like pwa-pipeline-is.
+
+
+
+
+Service role: Select New service role.
+
+
+
+Advanced settings:
+
+
+Artifact store: Select Custom location.
+
+
+
+Bucket: Choose your artifact bucket (store-build-artifact-is).
+
+Click Next.
+
+Step 2: Add source stage
+
+
+Source provider: Select GitHub (Version 1). (Your lab manual uses Version 1, so we will stick to that).
+
+
+
+Connection: Select your existing GitHub connection.
+
+
+Repository: Choose your forked Car-pwa-deploy-on-aws repository.
+
+
+Branch: Select master.
+
+
+
+Change detection: Leave GitHub webhooks selected.
+
+
+Click Next.
+
+Step 3: Add build stage
+
+
+Build provider: Select AWS CodeBuild.
+
+
+
+Project name: Select the CodeBuild project you created (pwa-codebuild-is).
+
+
+Click Next.
+
+Step 4: Add deploy stage
+
+
+Deploy provider: Select Amazon S3.
+
+
+
+
+
+Region: Select the region where your S3 buckets are located.
+
+
+Bucket: Choose your website bucket (deployment-bucket-pwa-is).
+
+
+
+
+IMPORTANT: Check the box for Extract file before deploy. This is critical; it unzips the files from the build artifact.
+
+
+Click Next.
+
+Step 5: Review
+
+Look over all the settings to confirm they are correct.
+
+Click Create pipeline.
+
+Step 5: Verify Your Deployment
+Your pipeline will automatically start running.
+
+
+You will see the pipeline stages: Source, Build, and Deploy.
+
+
+Troubleshooting (If Build Fails): Your presentation shows the build failing the first time. This is common. It usually means the CodeBuild service role doesn't have permission to access S3.
+
+
+
+If the Build stage turns RED and says "Failed":
+
+Go to the IAM service in the AWS console.
+
+Click on Roles.
+
+
+
+
+
+Find and click on the role created for CodeBuild (e.g., codebuild-pwa-codebuild-is-service-role).
+
+
+
+
+Under Permissions policies, click Add permissions > Attach policies.
+
+
+
+In the search bar, type AmazonS3FullAccess.
+
+
+
+Check the box next to it and click Attach policies.
+
+Go back to your CodePipeline, and on the failed "Build" stage, click Retry.
+
+
+
+Verification: Wait for all three stages (Source, Build, Deploy) to turn GREEN and show Succeeded.
+
+
+
+
+
+View Your Website:
+
+Navigate back to the S3 service.
+
+Click on your website bucket (deployment-bucket-pwa-is).
+
+Go to the Properties tab.
+
+
+Scroll down to Static website hosting.
+
+Click the Bucket website endpoint URL. It will look something like http://deployment-bucket-pwa-is.s3-website.ap-south-1.amazonaws.com.
+
+You should now see the "Car Zone" website live on the internet! 
+
+Step 6: Clean Up (Very Important)
+To make sure you don't get charged for anything after the Free Tier expires, you must delete all the resources you created.
+
+
+
+
+Delete the CodePipeline:
+
+Go to CodePipeline, select your pipeline (pwa-pipeline-is), and click Delete.
+
+
+Delete the CodeBuild Project:
+
+Go to CodeBuild, select your build project (pwa-codebuild-is), click Delete, and follow the prompts.
+
+Delete the S3 Buckets:
+
+Go to S3.
+
+Select your website bucket (deployment-bucket-pwa-is). Click Empty  and confirm. After it is empty, click Delete.
+
+Select your artifact bucket (store-build-artifact-is). Click Empty and confirm. After it is empty, click Delete.
+
+Delete the IAM Roles:
+
+Go to IAM > Roles.
+
+Find and delete the codebuild-pwa-codebuild-is-service-role.
+
+
+Find and delete the AWSCodePipelineServiceRole... role that was created for your pipeline.
+
+You have now successfully completed the experiment.
